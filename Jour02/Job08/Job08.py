@@ -1,82 +1,116 @@
+import tkinter as tk
 import mysql.connector
 
-class ZooDAO:
-    def __init__(self, db_file):
-        self.conn = mysql.connector.connect(db_file)
-        self.cursor = self.conn.cursor()
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS animaux (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nom TEXT,
-                race TEXT,
-                id_cage INTEGER,
-                naissance DATE,
-                origin TEXT,
-                FOREIGN KEY (id_cage) REFERENCES cages(id)
-            );
-        """)
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                superficie REAL,
-                capacite INTEGER
-            );
-        """)
+
+class Application:
+    def __init__(self, master):
+        self.master = master
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Connexion à la base de données
+        self.conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="root",
+            database="employes",
+            ssl_disabled=True
+        )
+        self.c = self.conn.cursor()
+        
+
+        # Création de la table employes
+        self.c.execute('''CREATE TABLE IF NOT EXISTS employes (
+                       id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                       nom TEXT,
+                       prenom TEXT,
+                       salaire INT,
+                       id_service INT
+                   )''')
+
+        
+
+        # Création des widgets
+        self.nom_label = tk.Label(self.master, text="Nom:")
+        self.nom_label.grid(row=0, column=0)
+        self.nom_entry = tk.Entry(self.master)
+        self.nom_entry.grid(row=0, column=1)
+
+        self.prenom_label = tk.Label(self.master, text="Prénom:")
+        self.prenom_label.grid(row=1, column=0)
+        self.prenom_entry = tk.Entry(self.master)
+        self.prenom_entry.grid(row=1, column=1)
+
+        self.salaire_label = tk.Label(self.master, text="Salaire:")
+        self.salaire_label.grid(row=2, column=0)
+        self.salaire_entry = tk.Entry(self.master)
+        self.salaire_entry.grid(row=2, column=1)
+        
+        self.id_service_label = tk.Label(self.master, text="id_service:")
+        self.id_service_label.grid(row=3, column=0)
+        self.id_service_entry = tk.Entry(self.master)
+        self.id_service_entry.grid(row=3, column=1)
+
+        self.id_label = tk.Label(self.master, text="ID a supprimer:")
+        self.id_label.grid(row=4, column=0)
+        self.id_entry = tk.Entry(self.master)
+        self.id_entry.grid(row=4, column=1) 
+
+        self.ajouter_button = tk.Button(self.master, text="Ajouter", command=self.ajouter_employe)
+        self.ajouter_button.grid(row=5, columnspan=2)
+        
+        self.supprimer_button = tk.Button(self.master, text="Supprimer", command=self.supprimer_employe)
+        self.supprimer_button.grid(row=7, columnspan=2)
+        
+        self.ajouter_button = tk.Button(self.master, text="Afficher les données", command=self.afficher_donnees)
+        self.ajouter_button.grid(row=6, columnspan=2)
+
+    def ajouter_employe(self):
+        # Récupération des valeurs des champs
+        nom = self.nom_entry.get()
+        prenom = self.prenom_entry.get()
+        salaire = int(self.salaire_entry.get())
+        id_service = int(self.id_service_entry.get())
+
+        # Ajout de l'employé à la base de données
+        sql = "INSERT INTO employes (nom, prenom, salaire, id_service) VALUES (%s, %s, %s, %s)"
+        val = (nom, prenom, salaire, id_service)
+        self.c.execute(sql, val)
+        
+        # Validation de la transaction
         self.conn.commit()
 
-    def ajouter_animal(self, nom, race, id_cage, naissance, origin):
-        sql = """
-            INSERT INTO animaux (nom, race, id_cage, naissance, origin)
-            VALUES (?, ?, ?, ?, ?)
-        """
-        self.cursor.execute(sql, (nom, race, id_cage, naissance, origin))
+    def supprimer_employe(self):
+        # Récupération de l'ID de l'employé à supprimer
+        id_employe = int(self.id_entry.get())
+
+    # Suppression de l'employé de la base de données
+        sql = "DELETE FROM employes WHERE id = %s"
+        val = (id_employe,)
+        self.c.execute(sql, val)
+
+    # Validation de la transaction
         self.conn.commit()
+    
+    def afficher_donnees(self):
+        self.c.execute("SELECT * FROM employes")
+        rows = self.c.fetchall()
 
-    def supprimer_animal(self, id_animals):
-        sql = "DELETE FROM animaux WHERE id = ?"
-        self.cursor.execute(sql, (id_animals,))
-        self.conn.commit()
+        top = tk.Toplevel(self.master)
+        tk.Label(top, text="ID").grid(row=0, column=0)
+        tk.Label(top, text="Nom").grid(row=0, column=1)
+        tk.Label(top, text="Prénom").grid(row=0, column=2)
+        tk.Label(top, text="Salaire").grid(row=0, column=3)
+        tk.Label(top, text="ID service").grid(row=0, column=4)
 
-    def modifier_animal(self, id_animal, nom, race, id_cage, naissance, origin):
-        sql = """
-            UPDATE animaux
-            SET nom = ?, race = ?, id_cage = ?, naissance = ?, origin = ?
-            WHERE id = ?
-        """
-        self.cursor.execute(sql, (nom, race, id_cage, naissance, origin, id_animal))
-        self.conn.commit()
+        for i, row in enumerate(rows):
+            for j, value in enumerate(row):
+                tk.Label(top, text=value).grid(row=i+1, column=j)
 
-    def afficher_animaux(self):
-        sql = """
-            SELECT a.id, a.nom, a.race, a.naissance, a.origin, c.id, c.superficie, c.capacite
-            FROM animaux a
-            LEFT JOIN cages c ON a.id_cage = c.id
-        """
-        self.cursor.execute(sql)
-        result = self.cursor.fetchall()
-        for row in result:
-            print(f"Animal n°{row[0]} : {row[1]} ({row[2]}) né le {row[3]}, originaire de {row[4]}, cage n°{row[5]} (superficie : {row[6]} m², capacité : {row[7]})")
+        tk.Button(top, text="Fermer", command=top.destroy).grid(row=len(rows)+1, columnspan=5)
 
-    def afficher_animaux_par_cage(self):
-        sql = """
-            SELECT c.id, c.superficie, c.capacite, GROUP_CONCAT(a.nom, ", ")
-            FROM cages c
-            LEFT JOIN animaux a ON a.id_cage = c.id
-            GROUP BY c.id
-        """
-        self.cursor.execute(sql)
-        result = self.cursor.fetchall()
-        for row in result:
-            print(f"Cage n°{row[0]} (superficie : {row[1]} m², capacité : {row[2]}) : {row[3]}")
 
-    def ajouter_cage(self, superficie, capacite):
-        sql = """
-            INSERT INTO cages (superficie, capacite)
-            VALUES (?, ?)
-        """
-        self.cursor.execute(sql, (superficie, capacite))
-        self.conn.commit()
 
-    def supprimer_cage(self, id_cage):
-        sql = "DELETE FROM cages WHERE id = ?"
-        self.cursor.execute(sql)
+root = tk.Tk()
+app = Application(root)
+root.mainloop()
